@@ -1,26 +1,29 @@
-/*******************************************************************************
- * Copyright (c) 1998, 2015 Oracle and/or its affiliates, IBM Corporation. All rights reserved.
+/*
+ * Copyright (c) 1998, 2018 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1998, 2018 IBM Corporation. All rights reserved.
+ *
  * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v1.0 and Eclipse Distribution License v. 1.0
- * which accompanies this distribution.
- * The Eclipse Public License is available at http://www.eclipse.org/legal/epl-v10.html
- * and the Eclipse Distribution License is available at 
+ * terms of the Eclipse Public License v. 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0,
+ * or the Eclipse Distribution License v. 1.0 which is available at
  * http://www.eclipse.org/org/documents/edl-v10.php.
  *
- * Contributors:
- *     Oracle - initial API and implementation from Oracle TopLink
- *     Zoltan NAGY & tware - added implementation of updateMaxRowsForQuery
- *     09/14/2011-2.3.1 Guy Pelletier 
- *       - 357533: Allow DDL queries to execute even when Multitenant entities are part of the PU
- *     02/04/2013-2.5 Guy Pelletier
- *       - 389090: JPA 2.1 DDL Generation Support
- *     04/30/2014-2.6 Lukas Jungmann
- *       - 380101: Invalid MySQL SQL syntax in query with LIMIT and FOR UPDATE
- *     07/23/2014-2.6 Lukas Jungmann
- *       - 440278: Support fractional seconds in time values
- *     02/19/2015 - Rick Curtis  
- *       - 458877 : Add national character support
- *****************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR BSD-3-Clause
+ */
+
+// Contributors:
+//     Oracle - initial API and implementation from Oracle TopLink
+//     Zoltan NAGY & tware - added implementation of updateMaxRowsForQuery
+//     09/14/2011-2.3.1 Guy Pelletier
+//       - 357533: Allow DDL queries to execute even when Multitenant entities are part of the PU
+//     02/04/2013-2.5 Guy Pelletier
+//       - 389090: JPA 2.1 DDL Generation Support
+//     04/30/2014-2.6 Lukas Jungmann
+//       - 380101: Invalid MySQL SQL syntax in query with LIMIT and FOR UPDATE
+//     07/23/2014-2.6 Lukas Jungmann
+//       - 440278: Support fractional seconds in time values
+//     02/19/2015 - Rick Curtis
+//       - 458877 : Add national character support
 package org.eclipse.persistence.platform.database;
 
 import java.io.IOException;
@@ -31,6 +34,7 @@ import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Hashtable;
@@ -49,8 +53,10 @@ import org.eclipse.persistence.internal.helper.DatabaseTable;
 import org.eclipse.persistence.internal.helper.Helper;
 import org.eclipse.persistence.internal.sessions.AbstractRecord;
 import org.eclipse.persistence.internal.sessions.AbstractSession;
+import org.eclipse.persistence.queries.DataReadQuery;
 import org.eclipse.persistence.queries.StoredProcedureCall;
 import org.eclipse.persistence.queries.ValueReadQuery;
+import org.eclipse.persistence.tools.schemaframework.TableDefinition;
 
 /**
  * <p><b>Purpose</b>: Provides MySQL specific behavior.
@@ -66,9 +72,9 @@ import org.eclipse.persistence.queries.ValueReadQuery;
  */
 public class MySQLPlatform extends DatabasePlatform {
 
-    
+
     private static final String LIMIT = " LIMIT ";
-    
+
     /** Support fractional seconds in time values since MySQL v. 5.6.4. */
     private boolean isFractionalTimeSupported;
     private boolean isConnectionDataInitialized;
@@ -129,7 +135,7 @@ public class MySQLPlatform extends DatabasePlatform {
 
     /**
      * Appends an MySQL specific Timestamp, if usesNativeSQL is true otherwise use the ODBC format.
-     * Native Format: 'YYYY-MM-DD HH:MM:SS' 
+     * Native Format: 'YYYY-MM-DD HH:MM:SS'
      */
     @Override
     protected void appendTimestamp(java.sql.Timestamp timestamp, Writer writer) throws IOException {
@@ -178,9 +184,9 @@ public class MySQLPlatform extends DatabasePlatform {
         fieldTypeMapping.put(Number.class, new FieldTypeDefinition("DECIMAL",38));
 
         if(getUseNationalCharacterVaryingTypeForString()){
-            fieldTypeMapping.put(String.class, new FieldTypeDefinition("NVARCHAR", DEFAULT_VARCHAR_SIZE));    
+            fieldTypeMapping.put(String.class, new FieldTypeDefinition("NVARCHAR", DEFAULT_VARCHAR_SIZE));
         } else {
-            fieldTypeMapping.put(String.class, new FieldTypeDefinition("VARCHAR", DEFAULT_VARCHAR_SIZE));   
+            fieldTypeMapping.put(String.class, new FieldTypeDefinition("VARCHAR", DEFAULT_VARCHAR_SIZE));
         }
         fieldTypeMapping.put(Character.class, new FieldTypeDefinition("CHAR", 1));
 
@@ -190,7 +196,7 @@ public class MySQLPlatform extends DatabasePlatform {
         fieldTypeMapping.put(char[].class, new FieldTypeDefinition("LONGTEXT", false));
         fieldTypeMapping.put(java.sql.Blob.class, new FieldTypeDefinition("LONGBLOB", false));
         fieldTypeMapping.put(java.sql.Clob.class, new FieldTypeDefinition("LONGTEXT", false));
-        
+
         fieldTypeMapping.put(java.sql.Date.class, new FieldTypeDefinition("DATE", false));
         FieldTypeDefinition fd = new FieldTypeDefinition("TIME");
         if (!isFractionalTimeSupported) {
@@ -203,7 +209,54 @@ public class MySQLPlatform extends DatabasePlatform {
         }
         fieldTypeMapping.put(java.sql.Timestamp.class, fd);
 
+        fieldTypeMapping.put(java.time.LocalDate.class, new FieldTypeDefinition("DATE"));
+
+        fd = new FieldTypeDefinition("DATETIME");
+        if (!isFractionalTimeSupported) {
+            fd.setIsSizeAllowed(false);
+        } else {
+            fd.setDefaultSize(3);
+            fd.setIsSizeRequired(true);
+        }
+        fieldTypeMapping.put(java.time.LocalDateTime.class,fd); //no timezone info
+
+        fd = new FieldTypeDefinition("TIME");
+        if (!isFractionalTimeSupported) {
+            fd.setIsSizeAllowed(false);
+        } else {
+            fd.setDefaultSize(3);
+            fd.setIsSizeRequired(true);
+        }
+        fieldTypeMapping.put(java.time.LocalTime.class, fd);
+
+        fd = new FieldTypeDefinition("DATETIME");
+        if (!isFractionalTimeSupported) {
+            fd.setIsSizeAllowed(false);
+        } else {
+            fd.setDefaultSize(3);
+            fd.setIsSizeRequired(true);
+        }
+        fieldTypeMapping.put(java.time.OffsetDateTime.class, fd); //no timezone info
+
+        fd = new FieldTypeDefinition("TIME");
+        if (!isFractionalTimeSupported) {
+            fd.setIsSizeAllowed(false);
+        } else {
+            fd.setDefaultSize(3);
+            fd.setIsSizeRequired(true);
+        }
+        fieldTypeMapping.put(java.time.OffsetTime.class, fd);
         return fieldTypeMapping;
+    }
+
+    @Override
+    public int getJDBCType(Class javaType) {
+        if (javaType == ClassConstants.TIME_ODATETIME) {
+            return Types.TIMESTAMP;
+        } else if (javaType == ClassConstants.TIME_OTIME) {
+            return Types.TIME;
+        }
+        return super.getJDBCType(javaType);
     }
 
     /**
@@ -226,20 +279,20 @@ public class MySQLPlatform extends DatabasePlatform {
     public String buildProcedureCallString(StoredProcedureCall call, AbstractSession session, AbstractRecord row) {
         return "{ " + super.buildProcedureCallString(call, session, row);
     }
-    
+
     /**
      * INTERNAL:
      * Use the JDBC maxResults and firstResultIndex setting to compute a value to use when
      * limiting the results of a query in SQL.  These limits tend to be used in two ways.
-     * 
+     *
      * 1. MaxRows is the index of the last row to be returned (like JDBC maxResults)
      * 2. MaxRows is the number of rows to be returned
-     * 
+     *
      * MySQL uses case #2 and therefore the maxResults has to be altered based on the firstResultIndex
      *
      * @param firstResultIndex
      * @param maxResults
-     * 
+     *
      * @see org.eclipse.persistence.platform.database.MySQLPlatform
      */
     @Override
@@ -271,9 +324,9 @@ public class MySQLPlatform extends DatabasePlatform {
      */
     @Override
     public String getUniqueConstraintDeletionString() {
-    	return " DROP KEY ";
+        return " DROP KEY ";
     }
-    
+
     /**
      * Used for stored function calls.
      */
@@ -290,7 +343,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public String getProcedureCallTail() {
         return " }"; // case-sensitive
     }
-    
+
     /**
      * INTERNAL:
      * Used for pessimistic locking.
@@ -299,7 +352,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public String getSelectForUpdateString() {
         return " FOR UPDATE";
     }
-    
+
     @Override
     public boolean isForUpdateCompatibleWithDistinct() {
         return false;
@@ -431,7 +484,7 @@ public class MySQLPlatform extends DatabasePlatform {
         exOperator.setNodeClass(ClassConstants.FunctionExpression_Class);
         return exOperator;
     }
-    
+
     /**
      * INTERNAL:
      * Build MySQL equivalent to LTRIM(string_exp, character).
@@ -522,7 +575,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public boolean supportsCountDistinctWithMultipleFields() {
         return true;
     }
-    
+
     /**
      * INTERNAL:
      * Return if this database requires the table name when dropping an index.
@@ -531,7 +584,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public boolean requiresTableInIndexDropDDL() {
         return true;
     }
-    
+
     /**
      * INTERNAL:
      * MySQL supports temp tables for update-all, delete-all queries.
@@ -544,7 +597,7 @@ public class MySQLPlatform extends DatabasePlatform {
     /**
      * INTERNAL:
      * Indicates whether locking clause could be selectively applied only to some tables in a ReadQuery.
-     * Example: the following locks the rows in SALARY table, doesn't lock the rows in EMPLOYEE table: 
+     * Example: the following locks the rows in SALARY table, doesn't lock the rows in EMPLOYEE table:
      *   on Oracle platform (method returns true):
      *     SELECT t0.EMP_ID..., t1.SALARY FROM EMPLOYEE t0, SALARY t1 WHERE ... FOR UPDATE t1.SALARY
      *   on SQLServer platform (method returns true):
@@ -554,7 +607,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public boolean supportsIndividualTableLocking() {
         return false;
     }
-    
+
     @Override
     public boolean supportsStoredFunctions() {
         return true;
@@ -569,7 +622,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public boolean supportsAutoConversionToNumericForArithmeticOperations() {
         return true;
     }
-        
+
     /**
      * INTERNAL:
      * MySQL temp table syntax, used for update-all, delete-all queries.
@@ -578,7 +631,7 @@ public class MySQLPlatform extends DatabasePlatform {
     protected String getCreateTempTableSqlPrefix() {
         return "CREATE TEMPORARY TABLE IF NOT EXISTS ";
     }
-    
+
     /**
      * Return the drop schema definition. Subclasses should override as needed.
      */
@@ -595,7 +648,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public boolean shouldAlwaysUseTempStorageForModifyAll() {
         return true;
     }
-    
+
     /**
      * INTERNAL:
      * MySQL stored procedure calls do not require the argument name be printed in the call string
@@ -603,7 +656,7 @@ public class MySQLPlatform extends DatabasePlatform {
      */
     @Override
     public boolean shouldPrintStoredProcedureArgumentNameInCall(){
-	    return false;
+        return false;
     }
 
     /**
@@ -622,11 +675,12 @@ public class MySQLPlatform extends DatabasePlatform {
      * @see #getStartDelimiter()
      * @see #getEndDelimiter()
      */
+    @Deprecated
     @Override
     public String getIdentifierQuoteCharacter() {
         return "`";
     }
-    
+
     /**
      * INTERNAL:
      * MySQL uses the INOUT keyword for this.
@@ -635,7 +689,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public String getInOutputProcedureToken() {
         return "INOUT";
     }
-    
+
     /**
      * MySQL does not use the AS token.
      */
@@ -643,7 +697,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public String getProcedureAsString() {
         return "";
     }
-    
+
     /**
      * INTERNAL:
      * MySQL requires the direction at the start of the argument.
@@ -652,7 +706,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public boolean shouldPrintOutputTokenAtStart() {
         return true;
     }
-    
+
     /**
      * INTERNAL:
      * Used for stored procedure calls.
@@ -661,7 +715,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public String getProcedureCallHeader() {
         return "CALL ";
     }
-    
+
     /**
      * INTERNAL:
      * MySQL requires BEGIN.
@@ -679,7 +733,7 @@ public class MySQLPlatform extends DatabasePlatform {
     public String getProcedureEndString() {
         return "END";
     }
-    
+
     /**
      * INTERNAL:
      * Writes MySQL specific SQL for accessing temp tables for update-all queries.
@@ -687,7 +741,7 @@ public class MySQLPlatform extends DatabasePlatform {
     @Override
     public void writeUpdateOriginalFromTempTableSql(Writer writer, DatabaseTable table,
                                                     Collection pkFields,
-                                                    Collection assignedFields) throws IOException 
+                                                    Collection assignedFields) throws IOException
     {
         writer.write("UPDATE ");
         String tableName = table.getQualifiedNameDelimited(this);
@@ -705,8 +759,8 @@ public class MySQLPlatform extends DatabasePlatform {
      */
     @Override
     public void writeDeleteFromTargetTableUsingTempTableSql(Writer writer, DatabaseTable table, DatabaseTable targetTable,
-            Collection pkFields, 
-            Collection targetPkFields, DatasourcePlatform platform) throws IOException 
+                                                            Collection pkFields,
+                                                            Collection targetPkFields, DatasourcePlatform platform) throws IOException
     {
         writer.write("DELETE FROM ");
         String targetTableName = targetTable.getQualifiedNameDelimited(this);
@@ -722,10 +776,8 @@ public class MySQLPlatform extends DatabasePlatform {
     @Override
     public void printSQLSelectStatement(DatabaseCall call, ExpressionSQLPrinter printer, SQLSelectStatement statement) {
         int max = 0;
-        int firstRow = 0;
         if (statement.getQuery() != null) {
             max = statement.getQuery().getMaxRows();
-            firstRow = statement.getQuery().getFirstResult();
         }
 
         if (max <= 0 || !(this.shouldUseRownumFiltering())) {
@@ -751,19 +803,33 @@ public class MySQLPlatform extends DatabasePlatform {
     public boolean requiresProcedureBrackets() {
         return true;
     }
-    
+
     /**
      * INTERNAL:
      * Prints return keyword for StoredFunctionDefinition:
-     *    CREATE FUNCTION StoredFunction_In (P_IN BIGINT) 
+     *    CREATE FUNCTION StoredFunction_In (P_IN BIGINT)
      *      RETURN  BIGINT
-     * The method was introduced because MySQL requires "RETURNS" instead:  
-     *    CREATE FUNCTION StoredFunction_In (P_IN BIGINT) 
+     * The method was introduced because MySQL requires "RETURNS" instead:
+     *    CREATE FUNCTION StoredFunction_In (P_IN BIGINT)
      *      RETURNS  BIGINT
      */
     @Override
     public void printStoredFunctionReturnKeyWord(Writer writer) throws IOException {
         writer.write("\n\t RETURNS ");
+    }
+
+    /**
+     * INTERNAL:
+     * Returns query to check whether given table exists in MySQL database.
+     * Returned query must be completely prepared so it can be just executed by calling code.
+     * @param table database table meta-data
+     * @return query to check whether given table exists
+     */
+    public DataReadQuery getTableExistsQuery(final TableDefinition table) {
+        final String sql = "SHOW TABLES LIKE '" + table.getFullName() + "'";
+        final DataReadQuery query = new DataReadQuery(sql);
+        query.setMaxRows(1);
+        return query;
     }
 
     /**
