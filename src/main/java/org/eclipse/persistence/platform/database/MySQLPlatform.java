@@ -29,6 +29,8 @@ package org.eclipse.persistence.platform.database;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
@@ -850,6 +852,50 @@ public class MySQLPlatform extends DatabasePlatform {
         } catch (Exception notFound) {
             return false;
         }
+    }
+
+    /**
+     * INTERNAL:
+     * A call to this method will perform a platform based check on the connection and exception
+     * error code to determine if the connection is still valid or if a communication error has occurred.
+     * If a communication error has occurred then the query may be retried.
+     * If this platform is unable to determine if the error was communication based it will return
+     * false forcing the error to be thrown to the user.
+     */
+    @Override
+    public boolean wasFailureCommunicationBased(SQLException exception, Connection connection, AbstractSession sessionForProfile) {
+        if (exception != null &&
+                exception.getClass().getName().equals("com.mysql.jdbc.exceptions.jdbc4.MySQLNonTransientConnectionException")) {
+            try {
+                if (connection.getClass().getName().equals("com.sun.gjc.spi.jdbc40.ConnectionHolder40")) {
+                    Method getManagedConnection = connection.getClass().getMethod("getManagedConnection");
+                    if (getManagedConnection != null) {
+                        Object managedConnection = getManagedConnection.invoke(connection);
+                        Method connectionErrorOccurred = null;
+                        for (Method method : managedConnection.getClass().getDeclaredMethods()) {
+                            if (method.getName().equals("connectionErrorOccurred")) {
+                                connectionErrorOccurred = method;
+                                break;
+                            }
+                        }
+                        if (connectionErrorOccurred != null) {
+                            connectionErrorOccurred.setAccessible(true);
+                            connectionErrorOccurred.invoke(managedConnection, exception, connection);
+                        }
+                    }
+                }
+            } catch (RuntimeException e) {
+                //
+            } catch (NoSuchMethodException e) {
+                //
+            } catch (IllegalAccessException e) {
+                //
+            } catch (InvocationTargetException e) {
+                //
+            }
+            return true;
+        }
+        return super.wasFailureCommunicationBased(exception, connection, sessionForProfile);
     }
 
 }
