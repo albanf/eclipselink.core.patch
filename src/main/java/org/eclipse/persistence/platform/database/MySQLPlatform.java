@@ -29,8 +29,6 @@ package org.eclipse.persistence.platform.database;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
@@ -53,6 +51,7 @@ import org.eclipse.persistence.internal.helper.DatabaseTable;
 import org.eclipse.persistence.internal.helper.Helper;
 import org.eclipse.persistence.internal.sessions.AbstractRecord;
 import org.eclipse.persistence.internal.sessions.AbstractSession;
+import org.eclipse.persistence.internal.sessions.DatabaseSessionImpl;
 import org.eclipse.persistence.queries.DataReadQuery;
 import org.eclipse.persistence.queries.StoredProcedureCall;
 import org.eclipse.persistence.queries.ValueReadQuery;
@@ -818,62 +817,39 @@ public class MySQLPlatform extends DatabasePlatform {
         writer.write("\n\t RETURNS ");
     }
 
+    // Value of shouldCheckResultTableExistsQuery must be true.
     /**
      * INTERNAL:
-     * Returns query to check whether given table exists in MySQL database.
-     * Returned query must be completely prepared so it can be just executed by calling code.
+     * Returns query to check whether given table exists.
+     * Query execution returns a row when table exists or empty result otherwise.
      * @param table database table meta-data
      * @return query to check whether given table exists
      */
-    public DataReadQuery getTableExistsQuery(final TableDefinition table) {
-        final String sql = "SHOW TABLES LIKE '" + table.getFullName() + "'";
-        final DataReadQuery query = new DataReadQuery(sql);
+    @Override
+    protected DataReadQuery getTableExistsQuery(final TableDefinition table) {
+        final DataReadQuery query = new DataReadQuery("SHOW TABLES LIKE '" + table.getFullName() + "'");
         query.setMaxRows(1);
         return query;
     }
 
     /**
      * INTERNAL:
-     * A call to this method will perform a platform based check on the connection and exception
-     * error code to determine if the connection is still valid or if a communication error has occurred.
-     * If a communication error has occurred then the query may be retried.
-     * If this platform is unable to determine if the error was communication based it will return
-     * false forcing the error to be thrown to the user.
+     * Executes and evaluates query to check whether given table exists.
+     * Returned value depends on returned result set being empty or not.
+     * @param session current database session
+     * @param table database table meta-data
+     * @param suppressLogging whether to suppress logging during query execution
+     * @return value of {@code true} if given table exists or {@code false} otherwise
      */
-    @Override
-    public boolean wasFailureCommunicationBased(SQLException exception, Connection connection, AbstractSession sessionForProfile) {
-        if (exception != null &&
-                exception.getClass().getName().equals("com.mysql.jdbc.exceptions.jdbc4.MySQLNonTransientConnectionException")) {
-            try {
-                if (connection.getClass().getName().equals("com.sun.gjc.spi.jdbc40.ConnectionHolder40")) {
-                    Method getManagedConnection = connection.getClass().getMethod("getManagedConnection");
-                    if (getManagedConnection != null) {
-                        Object managedConnection = getManagedConnection.invoke(connection);
-                        Method connectionErrorOccurred = null;
-                        for (Method method : managedConnection.getClass().getDeclaredMethods()) {
-                            if (method.getName().equals("connectionErrorOccurred")) {
-                                connectionErrorOccurred = method;
-                                break;
-                            }
-                        }
-                        if (connectionErrorOccurred != null) {
-                            connectionErrorOccurred.setAccessible(true);
-                            connectionErrorOccurred.invoke(managedConnection, exception, connection);
-                        }
-                    }
-                }
-            } catch (RuntimeException e) {
-                //
-            } catch (NoSuchMethodException e) {
-                //
-            } catch (IllegalAccessException e) {
-                //
-            } catch (InvocationTargetException e) {
-                //
-            }
-            return true;
+    public boolean checkTableExists(final DatabaseSessionImpl session,
+                                    final TableDefinition table, final boolean suppressLogging) {
+        try {
+            session.setLoggingOff(suppressLogging);
+            final Vector result = (Vector)session.executeQuery(getTableExistsQuery(table));
+            return !result.isEmpty();
+        } catch (Exception notFound) {
+            return false;
         }
-        return super.wasFailureCommunicationBased(exception, connection, sessionForProfile);
     }
 
 }
