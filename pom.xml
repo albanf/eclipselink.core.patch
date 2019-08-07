@@ -19,7 +19,7 @@
         https://github.com/payara/patched-src-eclipselink/tree/master/foundation/org.eclipse.persistence.core/src/org/eclipse/persistence</description>
 
     <properties>
-        <eclipselink.version>2.7.4.payara-p1</eclipselink.version>
+        <eclipselink.version>2.7.4.payara-p2</eclipselink.version>
     </properties>
     
     <dependencies>
