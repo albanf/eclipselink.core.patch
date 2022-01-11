@@ -29,8 +29,6 @@ package org.eclipse.persistence.platform.database;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
@@ -76,13 +74,11 @@ public class MySQLPlatform extends DatabasePlatform {
 
     private static final String LIMIT = " LIMIT ";
 
-    /**
-     * Support fractional seconds in time values since MySQL v. 5.6.4.
-     */
+    /** Support fractional seconds in time values since MySQL v. 5.6.4. */
     private boolean isFractionalTimeSupported;
     private boolean isConnectionDataInitialized;
 
-    public MySQLPlatform() {
+    public MySQLPlatform(){
         super();
         this.pingSQL = "SELECT 1";
         this.startDelimiter = "`";
@@ -183,10 +179,10 @@ public class MySQLPlatform extends DatabasePlatform {
         fieldTypeMapping.put(Short.class, new FieldTypeDefinition("SMALLINT", false));
         fieldTypeMapping.put(Byte.class, new FieldTypeDefinition("TINYINT", false));
         fieldTypeMapping.put(java.math.BigInteger.class, new FieldTypeDefinition("BIGINT", false));
-        fieldTypeMapping.put(java.math.BigDecimal.class, new FieldTypeDefinition("DECIMAL", 38));
-        fieldTypeMapping.put(Number.class, new FieldTypeDefinition("DECIMAL", 38));
+        fieldTypeMapping.put(java.math.BigDecimal.class, new FieldTypeDefinition("DECIMAL",38));
+        fieldTypeMapping.put(Number.class, new FieldTypeDefinition("DECIMAL",38));
 
-        if (getUseNationalCharacterVaryingTypeForString()) {
+        if(getUseNationalCharacterVaryingTypeForString()){
             fieldTypeMapping.put(String.class, new FieldTypeDefinition("NVARCHAR", DEFAULT_VARCHAR_SIZE));
         } else {
             fieldTypeMapping.put(String.class, new FieldTypeDefinition("VARCHAR", DEFAULT_VARCHAR_SIZE));
@@ -221,7 +217,7 @@ public class MySQLPlatform extends DatabasePlatform {
             fd.setDefaultSize(3);
             fd.setIsSizeRequired(true);
         }
-        fieldTypeMapping.put(java.time.LocalDateTime.class, fd); //no timezone info
+        fieldTypeMapping.put(java.time.LocalDateTime.class,fd); //no timezone info
 
         fd = new FieldTypeDefinition("TIME");
         if (!isFractionalTimeSupported) {
@@ -287,18 +283,19 @@ public class MySQLPlatform extends DatabasePlatform {
      * INTERNAL:
      * Use the JDBC maxResults and firstResultIndex setting to compute a value to use when
      * limiting the results of a query in SQL.  These limits tend to be used in two ways.
-     * <p>
+     *
      * 1. MaxRows is the index of the last row to be returned (like JDBC maxResults)
      * 2. MaxRows is the number of rows to be returned
-     * <p>
+     *
      * MySQL uses case #2 and therefore the maxResults has to be altered based on the firstResultIndex
      *
      * @param firstResultIndex
      * @param maxResults
+     *
      * @see org.eclipse.persistence.platform.database.MySQLPlatform
      */
     @Override
-    public int computeMaxRowsForSQL(int firstResultIndex, int maxResults) {
+    public int computeMaxRowsForSQL(int firstResultIndex, int maxResults){
         return maxResults - ((firstResultIndex >= 0) ? firstResultIndex : 0);
     }
 
@@ -307,7 +304,7 @@ public class MySQLPlatform extends DatabasePlatform {
      * Supports Batch Writing with Optimistic Locking.
      */
     @Override
-    public boolean canBatchWriteWithOptimisticLocking(DatabaseCall call) {
+    public boolean canBatchWriteWithOptimisticLocking(DatabaseCall call){
         return true;
     }
 
@@ -600,10 +597,10 @@ public class MySQLPlatform extends DatabasePlatform {
      * INTERNAL:
      * Indicates whether locking clause could be selectively applied only to some tables in a ReadQuery.
      * Example: the following locks the rows in SALARY table, doesn't lock the rows in EMPLOYEE table:
-     * on Oracle platform (method returns true):
-     * SELECT t0.EMP_ID..., t1.SALARY FROM EMPLOYEE t0, SALARY t1 WHERE ... FOR UPDATE t1.SALARY
-     * on SQLServer platform (method returns true):
-     * SELECT t0.EMP_ID..., t1.SALARY FROM EMPLOYEE t0, SALARY t1 WITH (UPDLOCK) WHERE ...
+     *   on Oracle platform (method returns true):
+     *     SELECT t0.EMP_ID..., t1.SALARY FROM EMPLOYEE t0, SALARY t1 WHERE ... FOR UPDATE t1.SALARY
+     *   on SQLServer platform (method returns true):
+     *     SELECT t0.EMP_ID..., t1.SALARY FROM EMPLOYEE t0, SALARY t1 WITH (UPDLOCK) WHERE ...
      */
     @Override
     public boolean supportsIndividualTableLocking() {
@@ -657,7 +654,7 @@ public class MySQLPlatform extends DatabasePlatform {
      * e.g. call MyStoredProc(?) instead of call MyStoredProc(myvariable = ?)
      */
     @Override
-    public boolean shouldPrintStoredProcedureArgumentNameInCall() {
+    public boolean shouldPrintStoredProcedureArgumentNameInCall(){
         return false;
     }
 
@@ -666,17 +663,16 @@ public class MySQLPlatform extends DatabasePlatform {
      * MySQL FOR UPDATE clause has to be the last
      */
     @Override
-    public boolean shouldPrintForUpdateClause() {
+    public boolean shouldPrintForUpdateClause(){
         return false;
     }
 
     /**
      * INTERNAL:
      * MySQL uses ' to allow identifier to have spaces.
-     *
+     * @deprecated
      * @see #getStartDelimiter()
      * @see #getEndDelimiter()
-     * @deprecated
      */
     @Deprecated
     @Override
@@ -744,7 +740,8 @@ public class MySQLPlatform extends DatabasePlatform {
     @Override
     public void writeUpdateOriginalFromTempTableSql(Writer writer, DatabaseTable table,
                                                     Collection pkFields,
-                                                    Collection assignedFields) throws IOException {
+                                                    Collection assignedFields) throws IOException
+    {
         writer.write("UPDATE ");
         String tableName = table.getQualifiedNameDelimited(this);
         writer.write(tableName);
@@ -762,7 +759,8 @@ public class MySQLPlatform extends DatabasePlatform {
     @Override
     public void writeDeleteFromTargetTableUsingTempTableSql(Writer writer, DatabaseTable table, DatabaseTable targetTable,
                                                             Collection pkFields,
-                                                            Collection targetPkFields, DatasourcePlatform platform) throws IOException {
+                                                            Collection targetPkFields, DatasourcePlatform platform) throws IOException
+    {
         writer.write("DELETE FROM ");
         String targetTableName = targetTable.getQualifiedNameDelimited(this);
         writer.write(targetTableName);
@@ -808,11 +806,11 @@ public class MySQLPlatform extends DatabasePlatform {
     /**
      * INTERNAL:
      * Prints return keyword for StoredFunctionDefinition:
-     * CREATE FUNCTION StoredFunction_In (P_IN BIGINT)
-     * RETURN  BIGINT
+     *    CREATE FUNCTION StoredFunction_In (P_IN BIGINT)
+     *      RETURN  BIGINT
      * The method was introduced because MySQL requires "RETURNS" instead:
-     * CREATE FUNCTION StoredFunction_In (P_IN BIGINT)
-     * RETURNS  BIGINT
+     *    CREATE FUNCTION StoredFunction_In (P_IN BIGINT)
+     *      RETURNS  BIGINT
      */
     @Override
     public void printStoredFunctionReturnKeyWord(Writer writer) throws IOException {
@@ -820,12 +818,10 @@ public class MySQLPlatform extends DatabasePlatform {
     }
 
     // Value of shouldCheckResultTableExistsQuery must be true.
-
     /**
      * INTERNAL:
      * Returns query to check whether given table exists.
      * Query execution returns a row when table exists or empty result otherwise.
-     *
      * @param table database table meta-data
      * @return query to check whether given table exists
      */
@@ -840,9 +836,8 @@ public class MySQLPlatform extends DatabasePlatform {
      * INTERNAL:
      * Executes and evaluates query to check whether given table exists.
      * Returned value depends on returned result set being empty or not.
-     *
-     * @param session         current database session
-     * @param table           database table meta-data
+     * @param session current database session
+     * @param table database table meta-data
      * @param suppressLogging whether to suppress logging during query execution
      * @return value of {@code true} if given table exists or {@code false} otherwise
      */
@@ -850,55 +845,11 @@ public class MySQLPlatform extends DatabasePlatform {
                                     final TableDefinition table, final boolean suppressLogging) {
         try {
             session.setLoggingOff(suppressLogging);
-            final Vector result = (Vector) session.executeQuery(getTableExistsQuery(table));
+            final Vector result = (Vector)session.executeQuery(getTableExistsQuery(table));
             return !result.isEmpty();
         } catch (Exception notFound) {
             return false;
         }
-    }
-
-    /**
-     * INTERNAL:
-     * A call to this method will perform a platform based check on the connection and exception
-     * error code to determine if the connection is still valid or if a communication error has occurred.
-     * If a communication error has occurred then the query may be retried.
-     * If this platform is unable to determine if the error was communication based it will return
-     * false forcing the error to be thrown to the user.
-     */
-    @Override
-    public boolean wasFailureCommunicationBased(SQLException exception, Connection connection, AbstractSession sessionForProfile) {
-        if (exception != null &&
-                exception.getClass().getName().equals("com.mysql.jdbc.exceptions.jdbc4.MySQLNonTransientConnectionException")) {
-            try {
-                if (connection.getClass().getName().equals("com.sun.gjc.spi.jdbc40.ConnectionHolder40")) {
-                    Method getManagedConnection = connection.getClass().getMethod("getManagedConnection");
-                    if (getManagedConnection != null) {
-                        Object managedConnection = getManagedConnection.invoke(connection);
-                        Method connectionErrorOccurred = null;
-                        for (Method method : managedConnection.getClass().getDeclaredMethods()) {
-                            if (method.getName().equals("connectionErrorOccurred")) {
-                                connectionErrorOccurred = method;
-                                break;
-                            }
-                        }
-                        if (connectionErrorOccurred != null) {
-                            connectionErrorOccurred.setAccessible(true);
-                            connectionErrorOccurred.invoke(managedConnection, exception, connection);
-                        }
-                    }
-                }
-            } catch (RuntimeException e) {
-                //
-            } catch (NoSuchMethodException e) {
-                //
-            } catch (IllegalAccessException e) {
-                //
-            } catch (InvocationTargetException e) {
-                //
-            }
-            return true;
-        }
-        return super.wasFailureCommunicationBased(exception, connection, sessionForProfile);
     }
 
 }

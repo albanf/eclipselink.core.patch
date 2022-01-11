@@ -13,13 +13,13 @@
 
     <groupId>org.eclipse.persistence</groupId>
     <artifactId>org.eclipse.persistence.core</artifactId>
-    <version>2.7.4-mysql-fix</version>
+    <version>2.7.9-mysql-fix</version>
 
     <description>Patch eclipselink to release connections correctly. Sources from 
         https://github.com/payara/patched-src-eclipselink/tree/master/foundation/org.eclipse.persistence.core/src/org/eclipse/persistence</description>
 
     <properties>
-        <eclipselink.version>2.7.4.payara-p2</eclipselink.version>
+        <eclipselink.version>2.7.9.payara-p1</eclipselink.version>
     </properties>
     
     <dependencies>
